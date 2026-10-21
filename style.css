@@ -86,6 +86,8 @@ button:disabled { cursor: default; }
 :root[data-theme="dark"] .icon-sun, :root:not([data-theme="dark"]) .icon-moon { display: none; }
 
 .paid-toggle { user-select: none; }
+/* Quotes aren't paid and have a validity date instead of payment terms; invoices aren't converted. */
+[data-doc="quote"] .paid-toggle, [data-doc="quote"] .terms-row, [data-doc="invoice"] #convertBtn { display: none; }
 .paid-toggle input { margin: 0; width: 15px; height: 15px; accent-color: var(--paid); }
 .paid-toggle:has(input:checked) { border-color: var(--paid); color: var(--paid); }
 .paid-toggle:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -148,6 +150,7 @@ button:disabled { cursor: default; }
 .ledger-status { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
 .ledger-row[data-status="paid"] .ledger-status { color: var(--paid); font-weight: 600; }
 .ledger-row[data-status="overdue"] .ledger-status { color: var(--overdue); font-weight: 600; }
+.ledger-row[data-status="expired"] .ledger-status { font-weight: 600; }
 
 /* --- Rail foot: backup, theme, small print --- */
 .rail-foot {
@@ -305,6 +308,7 @@ textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
 /* Paper is always light, so the stamp uses the light-theme inks even in dark mode. */
 .stamp[data-status="paid"] { --stamp: #2447c9; }
 .stamp[data-status="overdue"] { --stamp: #b8322a; }
+.stamp[data-status="expired"] { --stamp: #58606d; }
 .stamp.thunk { animation: thunk .32s cubic-bezier(.2, 1.4, .5, 1); }
 @keyframes thunk {
   from { transform: rotate(-4deg) scale(1.5); opacity: 0; }

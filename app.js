@@ -1,7 +1,10 @@
 const STORAGE_KEY = 'invoice-draft';
 
 const itemsBody = document.getElementById('itemsBody');
-const fields = ['fromName','fromDetails','toName','toDetails','toEmail','invNumber','invDate','dueDate','notes','vatToggle','vatRate','currency','terms','paid'];
+const fields = ['fromName','fromDetails','toName','toDetails','toEmail','invNumber','invDate','dueDate','notes','vatToggle','vatRate','currency','terms','paid','docType'];
+
+const isQuote = () => document.getElementById('docType').value === 'quote';
+const docName = () => (isQuote() ? 'quote' : 'invoice');
 
 // Format each currency the way its own country writes it (en-ZA uses a decimal comma, odd for e.g. USD clients).
 const CURRENCY_LOCALES = {
@@ -56,8 +59,14 @@ function recalc() {
   document.getElementById('subtotal').textContent = money(t.subtotal);
   document.getElementById('vatAmount').textContent = money(t.vat);
   document.getElementById('grandTotal').textContent = money(t.total);
-  // SARS: a VAT-charging invoice must be headed "Tax Invoice".
-  document.querySelector('.doc-title').textContent = vatOn ? 'TAX INVOICE' : 'INVOICE';
+  const quote = isQuote();
+  document.body.dataset.doc = docName();
+  // SARS: a VAT-charging invoice must be headed "Tax Invoice". A quote isn't a tax document.
+  document.querySelector('.doc-title').textContent = quote ? 'QUOTE' : vatOn ? 'TAX INVOICE' : 'INVOICE';
+  document.querySelector('label[for=invNumber]').textContent = quote ? 'Quote #' : 'Invoice #';
+  document.querySelector('label[for=dueDate]').textContent = quote ? 'Valid until' : 'Due date';
+  document.getElementById('totalLabel').textContent = quote ? 'Total' : 'Total due';
+  document.getElementById('newInvoiceBtn').textContent = `New ${docName()}`;
   updateStamp();
 }
 
@@ -76,6 +85,7 @@ function collectData() {
 }
 
 function applyData(data) {
+  data = { docType: 'invoice', ...data }; // saves from before quotes existed
   fields.forEach(id => {
     const el = document.getElementById(id);
     // Missing checkbox = unchecked, so older saves without `paid` don't inherit the previous invoice's tick.
@@ -100,6 +110,7 @@ function save() {
 function updateStamp() {
   const stamp = document.getElementById('stamp');
   const status = invoiceStatus({
+    docType: docName(),
     paid: document.getElementById('paid').checked,
     dueDate: document.getElementById('dueDate').value,
   }, localISODate(new Date()));
@@ -128,15 +139,16 @@ document.getElementById('emailBtn').addEventListener('click', () => {
   const business = document.getElementById('fromName').value.trim() || 'us';
   const client = document.getElementById('toName').value.trim();
   const email = document.getElementById('toEmail').value.trim();
-  const num = document.getElementById('invNumber').value.trim() || 'this invoice';
+  const doc = docName();
+  const num = document.getElementById('invNumber').value.trim() || `this ${doc}`;
   const total = document.getElementById('grandTotal').textContent;
   const due = document.getElementById('dueDate').value;
 
-  const subject = `Invoice ${num} from ${business}`;
+  const subject = `${doc === 'quote' ? 'Quote' : 'Invoice'} ${num} from ${business}`;
   const body = [
     `Hi ${client || 'there'},`,
     '',
-    `Please find attached invoice ${num} for ${total}${due ? `, due ${due}` : ''}.`,
+    `Please find attached ${doc} ${num} for ${total}${due ? `, ${doc === 'quote' ? 'valid until' : 'due'} ${due}` : ''}.`,
     '',
     'Kind regards,',
     business,
@@ -148,16 +160,16 @@ document.getElementById('emailBtn').addEventListener('click', () => {
 // --- PDF filename (browser print/save-as-PDF uses the document title) ---
 const APP_TITLE = document.title;
 document.getElementById('printBtn').addEventListener('click', () => {
-  const num = document.getElementById('invNumber').value.trim() || 'invoice';
+  const num = document.getElementById('invNumber').value.trim() || docName();
   const client = document.getElementById('toName').value.trim();
-  document.title = `Invoice ${num}${client ? ' - ' + client : ''}`;
+  document.title = `${isQuote() ? 'Quote' : 'Invoice'} ${num}${client ? ' - ' + client : ''}`;
   window.print();
 });
 window.addEventListener('afterprint', () => { document.title = APP_TITLE; });
 
 // Keeps business details, notes, logo and settings; clears the client and lines, bumps the number.
 document.getElementById('newInvoiceBtn').addEventListener('click', () => {
-  if (!confirm('Start a new invoice? Anything not saved on this one will be cleared. Your business details, notes and logo stay.')) return;
+  if (!confirm(`Start a new ${docName()}? Anything not saved on this one will be cleared. Your business details, notes and logo stay.`)) return;
   const data = collectData();
   applyData({
     ...data,
@@ -167,7 +179,7 @@ document.getElementById('newInvoiceBtn').addEventListener('click', () => {
     toName: '', toDetails: '', toEmail: '', paid: false,
     items: [{ desc: '', qty: 1, price: 0 }],
   });
-  applyTerms();
+  applyDueDate();
   setOpenInvoice('');
   refreshInvoiceList();
   save();
@@ -178,15 +190,41 @@ const termsSelect = document.getElementById('terms');
 const invDateInput = document.getElementById('invDate');
 const dueDateInput = document.getElementById('dueDate');
 
-function applyTerms() {
-  const days = termsSelect.value;
+// Invoices: due date from payment terms. Quotes: valid for 30 days.
+function applyDueDate() {
+  const days = isQuote() ? 30 : termsSelect.value;
   if (days === 'custom') return;
   dueDateInput.value = addDays(invDateInput.value || localISODate(new Date()), days);
 }
 // 'input' (not 'change') so these run before the sheet-wide listener below recalcs and saves.
-termsSelect.addEventListener('input', applyTerms);
-invDateInput.addEventListener('input', applyTerms);
-dueDateInput.addEventListener('input', () => { termsSelect.value = 'custom'; });
+termsSelect.addEventListener('input', applyDueDate);
+invDateInput.addEventListener('input', applyDueDate);
+
+// --- Quotes ---
+// Switching type makes it a new, unsaved document numbered in its own sequence (QUO-… / INV-…).
+function switchDocType(type) {
+  const list = getSavedList();
+  const sameType = Object.keys(list).filter(num => (list[num].docType || 'invoice') === type);
+  document.getElementById('docType').value = type;
+  document.getElementById('invNumber').value = nextNumberAfter(sameType, type === 'quote' ? 'QUO-0001' : 'INV-0001');
+  document.getElementById('paid').checked = false;
+  applyDueDate();
+  setOpenInvoice('');
+  recalc();
+  save();
+  refreshInvoiceList();
+}
+document.getElementById('docType').addEventListener('input', (e) => switchDocType(e.target.value));
+
+// Same client, lines and notes; dated today, with the next invoice number and due date from the terms.
+document.getElementById('convertBtn').addEventListener('click', () => {
+  invDateInput.value = localISODate(new Date());
+  switchDocType('invoice');
+  document.getElementById('saveStatus').textContent = `Converted to invoice ${document.getElementById('invNumber').value}. Press Save to keep it.`;
+  document.getElementById('saveInvoiceBtn').focus(); // the Convert button just disappeared
+});
+// A quote's "valid until" isn't payment terms — leave them alone so Convert still uses them.
+dueDateInput.addEventListener('input', () => { if (!isQuote()) termsSelect.value = 'custom'; });
 
 // --- Saved invoices (named history, separate from the always-on draft) ---
 const LIST_KEY = 'invoice-list';
@@ -211,11 +249,44 @@ function shortDate(iso) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+function dueNote(inv) {
+  const until = inv.dueDate ? shortDate(inv.dueDate) : '';
+  if (inv.docType === 'quote') return until ? `Quote until ${until}` : 'Quote';
+  return until ? `Due ${until}` : '';
+}
+
+// --- Client autocomplete: names from saved documents, newest details win ---
+let clients = {};
+function refreshClients(list, numbersNewestFirst) {
+  clients = {};
+  [...numbersNewestFirst].reverse().forEach(num => {
+    const { toName, toDetails = '', toEmail = '' } = list[num];
+    if (toName?.trim()) clients[toName.trim()] = { toDetails, toEmail };
+  });
+  document.getElementById('clientList').replaceChildren(...Object.keys(clients).sort().map(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    return opt;
+  }));
+}
+
+// Fill in a known client's details — but never over details the user typed for someone else.
+// 'input' so it runs before the sheet-wide listener saves.
+document.getElementById('toName').addEventListener('input', (e) => {
+  const client = clients[e.target.value.trim()];
+  const toDetails = document.getElementById('toDetails');
+  if (!client) return;
+  if (toDetails.value && !Object.values(clients).some(c => c.toDetails === toDetails.value)) return;
+  toDetails.value = client.toDetails;
+  document.getElementById('toEmail').value = client.toEmail;
+});
+
 function refreshInvoiceList() {
   const list = getSavedList();
   const today = localISODate(new Date());
   const numbers = Object.keys(list).sort().reverse();
   document.getElementById('invoiceCount').textContent = numbers.length || '';
+  refreshClients(list, numbers);
   document.getElementById('ledgerEmpty').hidden = numbers.length > 0;
   invoiceListEl.replaceChildren(...numbers.map(num => {
     const inv = list[num];
@@ -228,7 +299,7 @@ function refreshInvoiceList() {
     if (num === openInvoice) row.setAttribute('aria-current', 'true');
     // textContent, not innerHTML: invoice data may come from an imported file.
     [[num, 'num'], [money(total, inv.currency), 'amount'], [inv.toName || 'No client', 'client'],
-     [status || (inv.dueDate ? `Due ${shortDate(inv.dueDate)}` : ''), 'status']].forEach(([text, cls]) => {
+     [status || dueNote(inv), 'status']].forEach(([text, cls]) => {
       const span = document.createElement('span');
       span.className = `ledger-${cls}`;
       span.textContent = text;
@@ -260,7 +331,7 @@ document.getElementById('saveInvoiceBtn').addEventListener('click', () => {
   if (!store(LIST_KEY, JSON.stringify(list))) { alert('Couldn’t save — this browser’s storage is full. Export a backup, then delete old invoices to make room.'); return; }
   setOpenInvoice(num);
   refreshInvoiceList();
-  showDone(document.getElementById('saveInvoiceBtn'), 'Saved', `Invoice ${num} saved`);
+  showDone(document.getElementById('saveInvoiceBtn'), 'Saved', `${isQuote() ? 'Quote' : 'Invoice'} ${num} saved`);
 });
 
 // Briefly relabels a button and announces the result to screen readers. Not disabled meanwhile:
@@ -370,7 +441,7 @@ if (draft) applyData(draft);
 if (!invDateInput.value) invDateInput.value = localISODate(new Date());
 if (!draft) {
   addItem();
-  applyTerms();
+  applyDueDate();
 }
 const savedLogo = localStorage.getItem(LOGO_KEY);
 if (savedLogo) setLogo(savedLogo);
@@ -379,3 +450,6 @@ const narrowScreen = matchMedia('(max-width: 900px)');
 if (narrowScreen.matches) ledger.open = false;
 refreshInvoiceList();
 recalc();
+
+// Offline + installable. Service workers need http(s), so opening index.html as a file skips this.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');

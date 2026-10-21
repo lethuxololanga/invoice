@@ -36,11 +36,19 @@ function nextInvoiceNumber(num) {
   return num ? num + '-2' : 'INV-0001';
 }
 
-// today is YYYY-MM-DD; ISO dates compare correctly as strings.
+// Number after the highest of `numbers`, or `fallback` when there are none.
+// ponytail: plain string sort, so it assumes zero-padded numbers (INV-0009 < INV-0010).
+function nextNumberAfter(numbers, fallback) {
+  return numbers.length ? nextInvoiceNumber([...numbers].sort().pop()) : fallback;
+}
+
+// today is YYYY-MM-DD; ISO dates compare correctly as strings. A quote's dueDate is its "valid until".
 function invoiceStatus(inv, today) {
+  const late = inv.dueDate && inv.dueDate < today;
+  if (inv.docType === 'quote') return late ? 'Expired' : '';
   if (inv.paid) return 'Paid';
-  if (inv.dueDate && inv.dueDate < today) return 'Overdue';
+  if (late) return 'Overdue';
   return '';
 }
 
-if (typeof module === 'object') module.exports = { localISODate, addDays, safeParse, round2, invoiceTotals, nextInvoiceNumber, invoiceStatus };
+if (typeof module === 'object') module.exports = { localISODate, addDays, safeParse, round2, invoiceTotals, nextInvoiceNumber, nextNumberAfter, invoiceStatus };

@@ -1,12 +1,22 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { localISODate, addDays, safeParse, round2, invoiceTotals, nextInvoiceNumber, invoiceStatus } = require('./lib.js');
+const { localISODate, addDays, safeParse, round2, invoiceTotals, nextInvoiceNumber, nextNumberAfter, invoiceStatus } = require('./lib.js');
 
 test('invoiceStatus: paid wins, overdue only after the due date', () => {
   assert.strictEqual(invoiceStatus({ paid: true, dueDate: '2026-01-01' }, '2026-10-21'), 'Paid');
   assert.strictEqual(invoiceStatus({ paid: false, dueDate: '2026-10-20' }, '2026-10-21'), 'Overdue');
   assert.strictEqual(invoiceStatus({ paid: false, dueDate: '2026-10-21' }, '2026-10-21'), '');
   assert.strictEqual(invoiceStatus({ dueDate: '' }, '2026-10-21'), '');
+});
+
+test('invoiceStatus: quotes expire instead of going overdue, and are never paid', () => {
+  assert.strictEqual(invoiceStatus({ docType: 'quote', dueDate: '2026-10-20' }, '2026-10-21'), 'Expired');
+  assert.strictEqual(invoiceStatus({ docType: 'quote', dueDate: '2026-10-21', paid: true }, '2026-10-21'), '');
+});
+
+test('nextNumberAfter continues from the highest number', () => {
+  assert.strictEqual(nextNumberAfter(['INV-0002', 'INV-0010', 'INV-0009'], 'INV-0001'), 'INV-0011');
+  assert.strictEqual(nextNumberAfter([], 'QUO-0001'), 'QUO-0001');
 });
 
 test('round2 rounds half away from zero despite float error', () => {
