@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoice Generator</title>
+<meta name="theme-color" content="#dfe3dc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171b19" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script>
+  var t;
+  try { t = localStorage.getItem('theme'); } catch (e) {}
+  t = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+<div class="app">
+
+  <aside class="rail no-print">
+    <div class="rail-head">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="7" fill="currentColor"/>
+          <text x="16" y="23" text-anchor="middle" font-family="Instrument Sans, Arial, sans-serif" font-weight="700" font-size="19">R</text>
+        </svg>
+        <h1>Invoice Generator</h1>
+      </div>
+      <button id="newInvoiceBtn" type="button" class="btn">New invoice</button>
+    </div>
+    <details id="ledger" class="ledger" open>
+      <summary>Your invoices <span id="invoiceCount" class="ledger-count"></span></summary>
+      <p id="ledgerEmpty" class="ledger-empty">No saved invoices yet. Press Save to keep this one here — you’ll see which are paid and which are overdue.</p>
+      <ul id="invoiceList" class="ledger-list"></ul>
+    </details>
+  </aside>
+
+  <main class="desk">
+    <div class="desk-bar no-print">
+      <div class="desk-bar-group">
+        <button id="saveInvoiceBtn" type="button" class="btn">Save</button>
+        <label class="btn paid-toggle"><input type="checkbox" id="paid"> Paid</label>
+        <button id="deleteInvoiceBtn" type="button" class="btn btn-quiet" hidden>Delete</button>
+        <p id="saveStatus" class="visually-hidden" role="status"></p>
+      </div>
+      <div class="desk-bar-group">
+        <button id="emailBtn" type="button" class="btn" title="Opens your email app — attach the downloaded PDF yourself">Email</button>
+        <button id="printBtn" type="button" class="btn btn-primary" title="Opens the print dialog — choose “Save as PDF”">Download PDF</button>
+      </div>
+    </div>
+
+    <article class="sheet" id="sheet">
+      <section class="sheet-head">
+        <div class="from-block">
+          <div class="logo-wrap">
+            <div id="logoDrop" class="logo-drop" tabindex="0" role="button" aria-label="Upload logo">
+              <img id="logoPreview" class="logo-preview" alt="" hidden>
+              <span class="logo-hint no-print">+ Add logo</span>
+            </div>
+            <button id="logoRemove" type="button" class="logo-remove no-print" hidden aria-label="Remove logo" title="Remove logo">&times;</button>
+          </div>
+          <input id="logoInput" type="file" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
+          <label class="field-label no-print" for="fromName">From</label>
+          <input id="fromName" placeholder="Your name / business name" class="big">
+          <textarea id="fromDetails" aria-label="Your address and contact details" placeholder="Address, phone, email&#10;VAT No. (if registered)"></textarea>
+        </div>
+        <div class="invoice-meta">
+          <h2 class="doc-title">INVOICE</h2>
+          <div class="meta-row no-print">
+            <label for="currency">Currency</label>
+            <select id="currency">
+              <option value="ZAR" selected>ZAR — R</option>
+              <option value="USD">USD — $</option>
+              <option value="EUR">EUR — €</option>
+              <option value="GBP">GBP — £</option>
+              <option value="JPY">JPY — ¥</option>
+              <option value="AUD">AUD — A$</option>
+              <option value="CAD">CAD — C$</option>
+              <option value="CHF">CHF — Fr</option>
+              <option value="CNY">CNY — ¥</option>
+              <option value="INR">INR — ₹</option>
+              <option value="NZD">NZD — NZ$</option>
+              <option value="SGD">SGD — S$</option>
+              <option value="HKD">HKD — HK$</option>
+              <option value="AED">AED — د.إ</option>
+              <option value="BRL">BRL — R$</option>
+            </select>
+          </div>
+          <div class="meta-row"><label for="invNumber">Invoice #</label><input id="invNumber" value="INV-0001"></div>
+          <div class="meta-row"><label for="invDate">Date</label><input id="invDate" type="date"></div>
+          <div class="meta-row no-print">
+            <label for="terms">Terms</label>
+            <select id="terms">
+              <option value="0">Due on receipt</option>
+              <option value="7" selected>Net 7</option>
+              <option value="14">Net 14</option>
+              <option value="30">Net 30</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="meta-row"><label for="dueDate">Due date</label><input id="dueDate" type="date"></div>
+        </div>
+      </section>
+
+      <section class="sheet-parties">
+        <div id="stamp" class="stamp" hidden aria-live="polite"></div>
+        <div class="to-block">
+          <label class="field-label no-print" for="toName">Bill to</label>
+          <input id="toName" placeholder="Client name / company" class="big">
+          <textarea id="toDetails" aria-label="Client address and VAT number" placeholder="Client address, email&#10;Client VAT No. (required on tax invoices over R5,000)"></textarea>
+          <input id="toEmail" type="email" class="no-print" aria-label="Client email" placeholder="Client email (optional, used by Email)">
+        </div>
+      </section>
+
+      <table class="items">
+        <thead>
+          <tr>
+            <th class="col-desc">Description</th>
+            <th class="col-qty">Qty</th>
+            <th class="col-price">Unit price</th>
+            <th class="col-total">Amount</th>
+            <th class="col-del no-print"><span class="visually-hidden">Remove</span></th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody"></tbody>
+        <tfoot class="no-print">
+          <tr>
+            <td colspan="5">
+              <button id="addItem" type="button" class="add-row-btn">+ Add line item</button>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <section class="sheet-summary">
+        <div class="notes-block">
+          <label class="field-label no-print" for="notes">Notes and banking details</label>
+          <textarea id="notes" placeholder="Bank: &#10;Account No: &#10;Branch Code: &#10;Reference: INV-0001&#10;Payment terms: Due within 7 days"></textarea>
+        </div>
+        <div class="totals-block">
+          <div class="totals-row"><span>Subtotal</span><span id="subtotal">R 0.00</span></div>
+          <div class="totals-row vat-row">
+            <span class="vat-label"><label><input type="checkbox" id="vatToggle"> VAT</label><input type="number" id="vatRate" value="15" min="0" max="100" aria-label="VAT rate">%</span>
+            <span id="vatAmount">R 0.00</span>
+          </div>
+          <div class="totals-row total-row"><span>Total due</span><span id="grandTotal">R 0.00</span></div>
+        </div>
+      </section>
+    </article>
+
+  </main>
+
+  <footer class="rail-foot no-print">
+    <div class="rail-tools">
+      <button id="exportBtn" type="button" class="btn btn-quiet" title="Download all saved invoices as a backup file">Export backup</button>
+      <button id="importBtn" type="button" class="btn btn-quiet" title="Restore saved invoices from a backup file">Import backup</button>
+      <input id="importInput" type="file" accept="application/json,.json" class="visually-hidden" tabindex="-1" aria-hidden="true">
+      <button id="themeToggle" type="button" class="btn btn-quiet icon-btn" aria-label="Dark mode" aria-pressed="false" title="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
+        </svg>
+      </button>
+    </div>
+    <p class="footnote">Everything stays in this browser — no account, nothing uploaded. Clearing your browser data deletes your invoices, so export a backup now and then.</p>
+    <p class="footnote">Made by <a href="https://www.easystudio.co.za" target="_blank" rel="noopener">EasyStudio</a></p>
+  </footer>
+</div>
+<script src="lib.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
