@@ -36,6 +36,25 @@
     </div>
     <details id="ledger" class="ledger" open>
       <summary>Your invoices <span id="invoiceCount" class="ledger-count"></span></summary>
+      <div id="ledgerTotals" class="ledger-totals" hidden></div>
+      <div id="repeatDue" class="repeat-due" hidden>
+        <h2 class="repeat-title">Due to repeat</h2>
+        <ul id="repeatList" class="repeat-list"></ul>
+      </div>
+      <div id="ledgerTools" class="ledger-tools" role="search" hidden>
+        <input id="ledgerSearch" type="search" class="ledger-search" placeholder="Search number, client, item" aria-label="Search saved documents by number, client or line description" autocomplete="off">
+        <select id="ledgerFilter" class="ledger-filter" aria-label="Filter by status">
+          <option value="all">All</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="overdue">Overdue</option>
+          <option value="part">Part paid</option>
+          <option value="paid">Paid</option>
+          <option value="quote">Quotes</option>
+          <option value="credit">Credit notes</option>
+        </select>
+        <p id="ledgerShown" class="ledger-shown" role="status" aria-live="polite"></p>
+      </div>
+      <p id="ledgerNoMatch" class="ledger-empty" hidden>No matches. Try a different search or filter.</p>
       <p id="ledgerEmpty" class="ledger-empty">No saved invoices yet. Press Save to keep this one here — you’ll see which are paid and which are overdue.</p>
       <ul id="invoiceList" class="ledger-list"></ul>
     </details>
@@ -46,7 +65,22 @@
       <div class="desk-bar-group">
         <button id="saveInvoiceBtn" type="button" class="btn">Save</button>
         <label class="btn paid-toggle"><input type="checkbox" id="paid"> Paid</label>
+        <label class="btn quote-status"><span>Quote</span>
+          <select id="quoteStatus" aria-label="Quote status">
+            <option value="">Open</option>
+            <option value="accepted">Accepted</option>
+            <option value="declined">Declined</option>
+          </select>
+        </label>
         <button id="convertBtn" type="button" class="btn">Convert to invoice</button>
+        <button id="duplicateBtn" type="button" class="btn" hidden title="Start a new unsaved copy of this saved document">Duplicate</button>
+        <label class="btn repeat-opt" id="repeatWrap" hidden><span>Repeats</span>
+          <select id="repeat" aria-label="Repeats">
+            <option value="">Never</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </label>
+        <button id="creditNoteBtn" type="button" class="btn" hidden title="Start a credit note for this saved invoice">Credit note</button>
         <button id="deleteInvoiceBtn" type="button" class="btn btn-quiet" hidden>Delete</button>
         <p id="saveStatus" class="visually-hidden" role="status"></p>
       </div>
@@ -78,6 +112,7 @@
             <select id="docType">
               <option value="invoice" selected>Invoice</option>
               <option value="quote">Quote</option>
+              <option value="credit">Credit note</option>
             </select>
           </div>
           <div class="meta-row no-print">
@@ -112,7 +147,7 @@
               <option value="custom">Custom</option>
             </select>
           </div>
-          <div class="meta-row"><label for="dueDate">Due date</label><input id="dueDate" type="date"></div>
+          <div class="meta-row" id="dueRow"><label for="dueDate">Due date</label><input id="dueDate" type="date"></div>
         </div>
       </section>
 
@@ -127,20 +162,30 @@
         </div>
       </section>
 
+      <section class="credit-info" id="creditInfo">
+        <p id="creditRef" class="credit-ref"></p>
+        <div class="reason-row">
+          <label for="creditReason">Reason:</label>
+          <textarea id="creditReason" rows="2" placeholder="Why you’re crediting this, e.g. goods returned, overcharged (required)"></textarea>
+        </div>
+      </section>
+
       <table class="items">
         <thead>
           <tr>
             <th class="col-desc">Description</th>
             <th class="col-qty">Qty</th>
+            <th class="col-unit">Unit</th>
             <th class="col-price">Unit price</th>
             <th class="col-total">Amount</th>
+            <th class="col-move no-print"><span class="visually-hidden">Move</span></th>
             <th class="col-del no-print"><span class="visually-hidden">Remove</span></th>
           </tr>
         </thead>
         <tbody id="itemsBody"></tbody>
         <tfoot class="no-print">
           <tr>
-            <td colspan="5">
+            <td colspan="7">
               <button id="addItem" type="button" class="add-row-btn">+ Add line item</button>
             </td>
           </tr>
@@ -149,16 +194,98 @@
 
       <section class="sheet-summary">
         <div class="notes-block">
-          <label class="field-label no-print" for="notes">Notes and banking details</label>
-          <textarea id="notes" placeholder="Bank: &#10;Account No: &#10;Branch Code: &#10;Reference: INV-0001&#10;Payment terms: Due within 7 days"></textarea>
+          <label class="field-label no-print" for="notes">Notes</label>
+          <textarea id="notes" placeholder="Payment terms, a thank-you, anything else the client should know"></textarea>
         </div>
         <div class="totals-block">
-          <div class="totals-row"><span>Subtotal</span><span id="subtotal">R 0.00</span></div>
-          <div class="totals-row vat-row">
-            <span class="vat-label"><label><input type="checkbox" id="vatToggle"> VAT</label><input type="number" id="vatRate" value="15" min="0" max="100" aria-label="VAT rate">%</span>
+          <div class="totals-row"><span id="subtotalLabel">Subtotal</span><span id="subtotal">R 0.00</span></div>
+          <div class="totals-row discount-row" id="discountRow">
+            <span class="discount-label">
+              <span class="no-print discount-controls">
+                <label for="discountValue">Discount</label>
+                <input type="number" id="discountValue" min="0" step="any" aria-label="Discount value">
+                <select id="discountType" aria-label="Discount type">
+                  <option value="percent" selected>%</option>
+                  <option value="amount">Amount</option>
+                </select>
+              </span>
+              <span id="discountPrintLabel" class="print-only">Discount</span>
+            </span>
+            <span id="discountAmount">R 0.00</span>
+          </div>
+          <div class="totals-row cat-row" id="catStandardRow" hidden><span id="catStandardLabel">Standard-rated</span><span id="catStandard">R 0.00</span></div>
+          <div class="totals-row cat-row" id="catZeroRow" hidden><span>Zero-rated (0%)</span><span id="catZero">R 0.00</span></div>
+          <div class="totals-row cat-row" id="catExemptRow" hidden><span>Exempt</span><span id="catExempt">R 0.00</span></div>
+          <div class="totals-row" id="netRow" hidden><span>Total excl. VAT</span><span id="netAmount">R 0.00</span></div>
+          <div class="totals-row vat-row" id="vatRow">
+            <span>
+              <span class="vat-label no-print"><label><input type="checkbox" id="vatToggle"> VAT</label><input type="number" id="vatRate" value="15" min="0" max="100" aria-label="VAT rate">%</span>
+              <span id="vatPrintLabel" class="print-only">VAT</span>
+            </span>
             <span id="vatAmount">R 0.00</span>
           </div>
+          <div class="vat-incl-row no-print" id="vatInclusiveRow" hidden>
+            <label><input type="checkbox" id="vatInclusive"> Prices include VAT</label>
+          </div>
           <div class="totals-row total-row"><span id="totalLabel">Total due</span><span id="grandTotal">R 0.00</span></div>
+          <div class="totals-row payment-row" id="paidRow" hidden><span>Paid</span><span id="paidAmount">R 0.00</span></div>
+          <div class="totals-row payment-row" id="creditedRow" hidden><span>Credited</span><span id="creditedAmount">R 0.00</span></div>
+          <div class="totals-row balance-row" id="balanceRow" hidden><span>Balance due</span><span id="balanceAmount">R 0.00</span></div>
+          <div class="payments no-print" id="payments">
+            <h3 class="payments-title">Payments received</h3>
+            <ul id="paymentList" class="payment-list"></ul>
+            <div class="payment-form">
+              <input type="date" id="payDate" aria-label="Payment date">
+              <input type="number" id="payAmount" min="0" step="0.01" inputmode="decimal" aria-label="Payment amount" placeholder="Amount">
+              <input id="payNote" aria-label="Payment note or method" placeholder="EFT, Deposit…" maxlength="40">
+              <button type="button" id="addPaymentBtn" class="btn" aria-label="Add payment">Add payment</button>
+            </div>
+            <p id="paymentMsg" class="payment-msg" role="status"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="sheet-pay">
+        <div class="pay-col">
+          <fieldset class="pay-settings no-print">
+            <legend>Payment details (EFT)</legend>
+            <div class="pay-grid">
+              <label for="bankName">Bank</label><input id="bankName" autocomplete="off">
+              <label for="bankHolder">Account holder</label><input id="bankHolder" autocomplete="off">
+              <label for="bankAccount">Account number</label><input id="bankAccount" inputmode="numeric" autocomplete="off">
+              <label for="bankBranch">Branch code</label><input id="bankBranch" inputmode="numeric" autocomplete="off">
+              <label for="bankType">Account type</label>
+              <select id="bankType">
+                <option value="">Not shown</option>
+                <option value="cheque">Cheque / Current</option>
+                <option value="savings">Savings</option>
+                <option value="transmission">Transmission</option>
+              </select>
+            </div>
+            <p class="pay-hint">Printed on invoices as “Pay by EFT”, with the invoice number as the reference.</p>
+          </fieldset>
+          <div id="eftPrint" class="eft-print" hidden>
+            <h3 class="eft-title">Pay by EFT</h3>
+            <dl id="eftRows" class="eft-rows"></dl>
+          </div>
+        </div>
+        <div class="pay-col">
+          <fieldset class="pay-settings no-print">
+            <legend>Online payment link</legend>
+            <div class="pay-link-row">
+              <input id="payLink" type="url" inputmode="url" autocomplete="off" aria-label="Online payment link template" placeholder="https://… (optional)" aria-describedby="payLinkHint">
+              <select id="payPreset" aria-label="Payment link preset">
+                <option value="">Custom</option>
+                <option value="paypal">PayPal.me</option>
+              </select>
+            </div>
+            <p id="payLinkHint" class="pay-hint">Use {amount} (balance due), {number} and {currency} where the link needs them. Only https links are used. Yoco, Paystack or Stripe links made in their dashboards work as Custom.</p>
+            <p id="payLinkMsg" class="pay-msg" role="status"></p>
+          </fieldset>
+          <div id="payOnline" class="pay-online" hidden>
+            <p class="pay-online-text"><span>Pay online: </span><a id="payOnlineLink" target="_blank" rel="noopener"></a></p>
+            <div id="payQr" class="pay-qr" role="img" aria-label="QR code for the online payment link"></div>
+          </div>
         </div>
       </section>
     </article>
@@ -169,6 +296,7 @@
     <div class="rail-tools">
       <button id="exportBtn" type="button" class="btn btn-quiet" title="Download all saved invoices as a backup file">Export backup</button>
       <button id="importBtn" type="button" class="btn btn-quiet" title="Restore saved invoices from a backup file">Import backup</button>
+      <button id="zohoBtn" type="button" class="btn btn-quiet" title="Download the listed invoices as a CSV for Zoho Books’ invoice import">Export for Zoho Books</button>
       <input id="importInput" type="file" accept="application/json,.json" class="visually-hidden" tabindex="-1" aria-hidden="true">
       <button id="themeToggle" type="button" class="btn btn-quiet icon-btn" aria-label="Dark mode" aria-pressed="false" title="Toggle dark mode">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
@@ -180,11 +308,24 @@
         </svg>
       </button>
     </div>
+    <div id="zohoHelp" class="zoho-help" hidden>
+      <button id="zohoHelpClose" type="button" class="btn btn-quiet" aria-label="Dismiss Zoho Books import help">Dismiss</button>
+      <p><strong>Import into Zoho Books</strong></p>
+      <ol>
+        <li>In Zoho Books go to Sales → Invoices → ⋯ → Import Invoices.</li>
+        <li>Choose the file you just downloaded.</li>
+        <li>On the next screen untick “Auto-generate invoice numbers” to keep your numbers.</li>
+        <li>Let it match customers by name. Create any missing customers in Zoho first, or turn on the option to create them if you see it.</li>
+        <li>Check Map Fields, then import.</li>
+      </ol>
+      <p>Invoices come in as drafts. Payments and credit notes aren’t included. If VAT is on, Zoho needs a tax named “VAT” set up (it can’t be used if your organisation isn’t VAT-registered).</p>
+    </div>
     <p class="footnote">Everything stays in this browser — no account, nothing uploaded. Clearing your browser data deletes your invoices, so export a backup now and then.</p>
     <p class="footnote">Made by <a href="https://www.easystudio.co.za" target="_blank" rel="noopener">EasyStudio</a></p>
   </footer>
 </div>
 <script src="lib.js"></script>
+<script src="vendor/qrcode.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

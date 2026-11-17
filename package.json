@@ -1,0 +1,11 @@
+{
+  "name": "invoice",
+  "private": true,
+  "description": "Offline invoice and quote generator. The app itself has no dependencies; jsdom is only for tests.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

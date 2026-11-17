@@ -11,6 +11,8 @@
   --paper: #fff;
   --paid: #2447c9;
   --overdue: #b8322a;
+  --part: #8a5200;
+  --credit: #6b3fa0;
   --font: 'Instrument Sans', system-ui, sans-serif;
   --font-stamp: 'Anton', Impact, 'Arial Narrow', sans-serif;
 }
@@ -25,6 +27,8 @@
   --surface: #262c28;
   --paid: #93a8ff;
   --overdue: #ff8f85;
+  --part: #f0c36a;
+  --credit: #c9a8ff;
 }
 
 * { box-sizing: border-box; }
@@ -87,7 +91,17 @@ button:disabled { cursor: default; }
 
 .paid-toggle { user-select: none; }
 /* Quotes aren't paid and have a validity date instead of payment terms; invoices aren't converted. */
-[data-doc="quote"] .paid-toggle, [data-doc="quote"] .terms-row, [data-doc="invoice"] #convertBtn { display: none; }
+[data-doc="quote"] .paid-toggle, [data-doc="quote"] .terms-row, [data-doc="invoice"] #convertBtn,
+[data-doc="invoice"] .quote-status, [data-doc="quote"] .payments { display: none; }
+/* Credit notes aren't paid, have no terms and aren't quotes. */
+[data-doc="credit"] .paid-toggle, [data-doc="credit"] .terms-row, [data-doc="credit"] #convertBtn,
+[data-doc="credit"] .quote-status, [data-doc="credit"] .payments { display: none; }
+.quote-status { gap: 6px; }
+.quote-status select { border: none; background: none; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.quote-status:has(select:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
+.repeat-opt { gap: 6px; }
+.repeat-opt select { border: none; background: none; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.repeat-opt:has(select:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
 .paid-toggle input { margin: 0; width: 15px; height: 15px; accent-color: var(--paid); }
 .paid-toggle:has(input:checked) { border-color: var(--paid); color: var(--paid); }
 .paid-toggle:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -123,6 +137,30 @@ button:disabled { cursor: default; }
 .ledger-count { font-weight: 500; font-variant-numeric: tabular-nums; }
 .ledger-empty { font-size: 13px; color: var(--muted); padding: 12px 4px; margin: 0; max-width: 32ch; }
 
+/* Ledger tools: totals, repeat notice, search + filter. Kept compact for the narrow rail. */
+.ledger-totals { padding: 10px 4px 2px; font-variant-numeric: tabular-nums; }
+.totals-line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; font-size: 13px; padding: 1px 0; }
+.totals-line .totals-cur { font-size: 11px; font-weight: 600; color: var(--muted); }
+.totals-line .totals-label { color: var(--muted); }
+.totals-line .totals-value { font-weight: 600; text-align: right; }
+.totals-line.is-overdue .totals-value { color: var(--overdue); }
+.totals-line.is-zero .totals-value { color: var(--muted); font-weight: 500; }
+.repeat-due { margin: 10px 0 2px; padding: 8px 10px; border: 1px solid var(--line-strong); border-left: 3px solid var(--part); border-radius: 6px; background: var(--surface); }
+.repeat-title { font-size: 12px; font-weight: 600; margin: 0 0 4px; color: var(--part); }
+.repeat-list { list-style: none; margin: 0; padding: 0; }
+.repeat-list li { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+.repeat-list .repeat-text { min-width: 0; overflow-wrap: anywhere; }
+.repeat-list .btn { height: 28px; padding: 0 10px; font-size: 12px; flex-shrink: 0; }
+.ledger-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0 4px; }
+.ledger-search, .ledger-filter {
+  height: 34px; padding: 0 8px; font-size: 13px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px;
+}
+.ledger-search { flex: 1 1 120px; min-width: 0; }
+.ledger-filter { flex: 0 1 auto; max-width: 100%; }
+.ledger-search:focus-visible, .ledger-filter:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.ledger-shown { flex: 1 1 100%; margin: 0; font-size: 12px; color: var(--muted); min-height: 1em; }
+
 .ledger-list { list-style: none; margin: 0; padding: 0; }
 .ledger-list li { border-bottom: 1px solid var(--line); }
 
@@ -151,6 +189,10 @@ button:disabled { cursor: default; }
 .ledger-row[data-status="paid"] .ledger-status { color: var(--paid); font-weight: 600; }
 .ledger-row[data-status="overdue"] .ledger-status { color: var(--overdue); font-weight: 600; }
 .ledger-row[data-status="expired"] .ledger-status { font-weight: 600; }
+.ledger-row[data-status="part paid"] .ledger-status { color: var(--part); font-weight: 600; }
+.ledger-row[data-status="accepted"] .ledger-status { color: var(--paid); font-weight: 600; }
+.ledger-row[data-status="declined"] .ledger-status { color: var(--overdue); font-weight: 600; }
+.ledger-row[data-status="credited"] .ledger-status, .ledger-row[data-status="credit"] .ledger-status { color: var(--credit); font-weight: 600; }
 
 /* --- Rail foot: backup, theme, small print --- */
 .rail-foot {
@@ -162,6 +204,12 @@ button:disabled { cursor: default; }
 .rail-tools { display: flex; align-items: center; gap: 2px; margin: 0 -8px 12px; flex-wrap: wrap; }
 .rail-tools .btn { height: 34px; padding: 0 8px; font-size: 13px; }
 .rail-tools .icon-btn { width: 34px; padding: 0; margin-left: auto; }
+.zoho-help { position: relative; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; color: var(--muted); max-width: 34ch; }
+.zoho-help p { margin: 0 0 6px; }
+.zoho-help strong { color: var(--ink); }
+.zoho-help ol { margin: 0 0 6px; padding-left: 18px; }
+.zoho-help li { margin-bottom: 3px; }
+.zoho-help .btn { position: absolute; top: 4px; right: 4px; height: 28px; padding: 0 8px; font-size: 12px; }
 .footnote { font-size: 12px; color: var(--muted); margin: 0 0 6px; max-width: 34ch; }
 .footnote a { color: inherit; }
 .footnote a:hover { color: var(--ink); }
@@ -184,6 +232,13 @@ button:disabled { cursor: default; }
   --muted: #58606d;
   --line: #dde1da;
   --field-edge: #8a9288; /* 3:1 on white, for control outlines */
+  /* Controls on the sheet (.btn, messages, hovers) use these too — without them they pick up dark-theme values on white paper. */
+  --surface: #f6f7f4;
+  --line-strong: #aeb5ab;
+  --paid: #2447c9;
+  --overdue: #b8322a;
+  --part: #8a5200;
+  --credit: #6b3fa0;
   position: relative;
   max-width: 850px;
   margin: 0 auto;
@@ -309,12 +364,25 @@ textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
 .stamp[data-status="paid"] { --stamp: #2447c9; }
 .stamp[data-status="overdue"] { --stamp: #b8322a; }
 .stamp[data-status="expired"] { --stamp: #58606d; }
+.stamp[data-status="accepted"] { --stamp: #1d7a46; }
+.stamp[data-status="declined"] { --stamp: #b8322a; }
+.stamp[data-status="credited"] { --stamp: #6b3fa0; }
 .stamp.thunk { animation: thunk .32s cubic-bezier(.2, 1.4, .5, 1); }
 @keyframes thunk {
   from { transform: rotate(-4deg) scale(1.5); opacity: 0; }
   to { transform: rotate(-9deg) scale(1); opacity: .9; }
 }
 @media (prefers-reduced-motion: reduce) { .stamp.thunk { animation: none; } }
+
+/* --- Credit note: which invoice it adjusts and why (both print) --- */
+.credit-info { display: none; margin: 0 0 8px; padding: 10px 0 4px; border-top: 1px solid var(--line); }
+[data-doc="credit"] .credit-info { display: block; }
+.credit-ref { margin: 0 0 4px; padding-left: 6px; font-size: 14px; font-weight: 600; }
+.reason-row { display: flex; align-items: baseline; gap: 2px; }
+.reason-row label { flex-shrink: 0; padding-left: 6px; font-size: 14px; font-weight: 600; }
+/* grows with the text where supported; two rows otherwise */
+#creditReason { min-height: 0; resize: none; field-sizing: content; }
+#creditReason:placeholder-shown { border-color: var(--field-edge); }
 
 /* --- Line items --- */
 table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
@@ -329,14 +397,32 @@ table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
 /* td has no side padding so input text (6px inner padding) lines up with the header text */
 .items td { border-bottom: 1px solid var(--line); padding: 6px 0; vertical-align: top; }
 .col-qty, .col-price, .col-total { width: 110px; }
+.col-unit { width: 64px; }
 .items .col-qty, .items .col-price, .items .col-total { text-align: right; }
+.items .col-unit input { text-align: left; }
+.col-move { width: 30px; }
 .col-del { width: 34px; }
 .items input { text-align: right; font-variant-numeric: tabular-nums; }
 .items .col-desc textarea { text-align: left; resize: none; min-height: 22px; overflow: hidden; line-height: 1.4; }
 .items td.row-total { padding: 10px 6px 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .items tbody tr:hover { background: #f8f9f7; }
 
-.del-row {
+/* Per-line VAT category: sits under the line amount so it needs no column of its own on phones. */
+.item-vatcat {
+  display: block;
+  max-width: 100%;
+  margin: 4px 0 0 auto;
+  padding: 1px 2px;
+  border: 1px solid var(--field-edge);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 400;
+}
+[data-vat="off"] .item-vatcat { display: none; }
+
+.del-row, .move-row {
   background: none;
   border: none;
   color: var(--muted);
@@ -349,9 +435,16 @@ table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
   transition: opacity .1s, color .1s;
 }
 /* touch screens have no hover — keep delete visible */
-@media (hover: none) { .del-row { opacity: .6; } }
-.items tbody tr:hover .del-row, .del-row:focus-visible { opacity: 1; }
+@media (hover: none) { .del-row, .move-row { opacity: .6; } }
+.items tbody tr:hover .del-row, .del-row:focus-visible,
+.items tbody tr:hover .move-row, .move-row:focus-visible { opacity: 1; }
 .del-row:hover { color: var(--overdue); }
+
+/* small stacked arrows, one above the other, so the column stays narrow */
+.move-row { display: block; font-size: 10px; min-width: 28px; padding: 4px 8px; }
+.move-row:hover { color: var(--ink); }
+.move-row[aria-disabled="true"] { opacity: .25 !important; cursor: default; }
+.move-row[aria-disabled="true"]:hover { color: var(--muted); }
 
 .add-row-btn {
   width: 100%;
@@ -385,7 +478,50 @@ table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
 .vat-row label { display: flex; align-items: center; gap: 6px; min-height: 24px; cursor: pointer; }
 .vat-row input[type=number] { width: 40px; padding: 2px 4px; text-align: right; border-color: var(--line); margin-left: 6px; }
 .vat-row input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--ink); }
+.discount-label { display: flex; align-items: center; }
+.discount-controls { display: flex; align-items: center; gap: 6px; }
+.discount-controls label { cursor: pointer; }
+.discount-row input[type=number] { width: 64px; padding: 2px 4px; text-align: right; border-color: var(--line); }
+.discount-row select { border: 1px solid var(--field-edge); border-radius: 4px; background: #fff; color: var(--ink); font-size: 13px; padding: 2px 4px; }
+.print-only { display: none; }
+.cat-row { font-size: 13px; color: var(--muted); }
+.vat-incl-row { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.vat-incl-row label { display: flex; align-items: center; gap: 6px; min-height: 24px; cursor: pointer; }
+.vat-incl-row input { width: 16px; height: 16px; margin: 0; accent-color: var(--ink); }
+.balance-row { font-weight: 700; font-size: 16px; border-bottom: 2px solid var(--ink); }
+.payments { padding-top: 14px; }
+.payments-title { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.payment-list { list-style: none; margin: 0; padding: 0; }
+.payment-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 13px; font-variant-numeric: tabular-nums; }
+.payment-form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.payment-form input { border: 1px solid var(--field-edge); border-radius: 4px; padding: 4px 6px; font-size: 13px; min-width: 0; }
+.payment-form #payDate { flex: 1 1 130px; }
+.payment-form #payAmount { flex: 1 1 80px; width: 80px; }
+.payment-form #payNote { flex: 2 1 110px; }
+.payment-form .btn { flex: 1 1 100%; justify-content: center; }
+.payment-msg { margin: 4px 0 0; min-height: 1em; font-size: 12px; color: var(--overdue); }
 .total-row { font-weight: 700; font-size: 20px; border-bottom: 2px solid var(--ink); padding-top: 12px; }
+
+/* --- Payment details: EFT block and online payment link. Inputs are screen-only; the blocks below them print. --- */
+.sheet-pay { display: flex; gap: 32px; margin-top: 28px; }
+.pay-col { flex: 1; min-width: 0; }
+.pay-settings { margin: 0; padding: 8px 10px 10px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+.pay-settings legend { padding: 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pay-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: center; }
+.pay-grid label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.pay-settings input, .pay-settings select { border: 1px solid var(--field-edge); border-radius: 4px; background: #fff; color: var(--ink); font-size: 13px; padding: 4px 6px; min-width: 0; }
+.pay-settings select { width: 100%; }
+.pay-link-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.pay-link-row input { flex: 1 1 200px; }
+.pay-link-row select { flex: 0 1 auto; width: auto; }
+.pay-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.pay-msg { margin: 4px 0 0; min-height: 1em; font-size: 12px; color: var(--overdue); }
+.eft-print { display: none; }
+.pay-online { margin-top: 12px; font-size: 14px; }
+.pay-online-text { margin: 0; overflow-wrap: anywhere; word-break: break-all; }
+.pay-online-text span { font-weight: 600; }
+.pay-online a { color: var(--paid); }
+.pay-qr { display: none; }
 
 /* --- Narrow screens: rail stacks on top, ledger folds into its summary line --- */
 @media (max-width: 900px) {
@@ -406,18 +542,23 @@ table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
   .desk-bar-group .btn { flex: 1 1 auto; justify-content: center; }
   .desk-bar-group #deleteInvoiceBtn { flex: 0 0 auto; }
   .sheet { padding: 24px 18px; }
-  .sheet-head, .sheet-parties, .sheet-summary { flex-direction: column; gap: 20px; }
+  .sheet-head, .sheet-parties, .sheet-summary, .sheet-pay { flex-direction: column; gap: 20px; }
   .invoice-meta { text-align: left; min-width: 0; }
   .meta-row { justify-content: space-between; }
   .meta-row input, .meta-row select { width: 140px; }
   .stamp { font-size: 34px; top: -6px; }
   .totals-block { min-width: 0; }
-  .col-qty { width: 44px; }
-  .col-price, .col-total { width: 76px; }
+  .col-qty { width: 38px; }
+  .col-unit { width: 40px; }
+  .col-price, .col-total { width: 66px; }
   .items th { padding: 6px 3px; }
   .items td, .items input, .items textarea, .items td.row-total { font-size: 13px; }
   .items td.row-total { padding: 10px 3px 0; }
-  .col-del { width: 32px; }
+  .col-del { width: 26px; }
+  .col-move { width: 26px; }
+  .items td.col-unit input, .items td.col-qty input, .items td.col-price input { padding-left: 3px; padding-right: 3px; }
+  .move-row, .del-row { min-width: 24px; padding-left: 4px; padding-right: 4px; }
+  .item-vatcat { font-size: 11px; padding: 1px 0; }
 }
 
 @media (max-width: 420px) {
@@ -432,6 +573,10 @@ table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
   .app { display: block; min-height: 0; }
   .desk { padding: 0; }
   .no-print { display: none !important; }
+  .print-only { display: inline; }
+  .discount-zero, .vat-off { display: none; }
+  .items .vat-mark { display: block; padding: 0 6px; font-size: 11px; color: var(--muted); }
+  .items .vat-mark:empty { display: none; }
   .sheet { box-shadow: none !important; padding: 0; max-width: none; }
   ::placeholder { color: transparent; }
   input, textarea { border: none !important; background: transparent !important; }
@@ -439,6 +584,17 @@ table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
   .logo-drop { border: none; }
   .logo-drop:not(.has-logo) { display: none; }
   .stamp { mix-blend-mode: normal; right: 16px; }
+  .sheet-pay { margin-top: 20px; break-inside: avoid; }
+  .eft-print { display: block; break-inside: avoid; }
+  .eft-title { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .eft-rows { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 14px; margin: 0; font-size: 13px; }
+  .eft-rows dt { color: var(--muted); }
+  .eft-rows dd { margin: 0; overflow-wrap: anywhere; }
+  .pay-online { break-inside: avoid; font-size: 13px; }
+  .pay-online a { color: var(--ink); text-decoration: none; }
+  .pay-qr { display: block; width: 28mm; height: 28mm; margin-top: 8px; }
+  .pay-qr[hidden] { display: none; }
+  .pay-qr svg { display: block; width: 100%; height: 100%; }
   textarea { resize: none; }
   input::-webkit-calendar-picker-indicator { display: none; }
 }
